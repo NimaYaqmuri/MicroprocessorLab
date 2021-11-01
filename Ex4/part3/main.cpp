@@ -201,6 +201,9 @@ ISR(TIMER1_OVF_vect)
             {
                 done = true;
 
+                PINB = PINB
+                       | (1 << PINB7);
+
                 command(CLEAR_DISPLAY);
 
                 // Create necessary string to display digital clock.
@@ -250,6 +253,10 @@ ISR(TIMER1_OVF_vect)
 
 int main()
 {    
+    //Set last bit of port B for output.
+    DDRB = DDRB
+           | (1 << PINB7);
+
     // Set timer 1 prescaler to system clock.
     TCCR1B = TCCR1B
             | (1 << CS10);
@@ -279,7 +286,6 @@ int main()
     // Write the string on LCD.
     write_str(str);
 
-    // Do nothing...
     while(true)
     {
         while(!set_hour)
