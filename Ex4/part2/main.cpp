@@ -148,16 +148,21 @@ void init(void)
     // Wait for LCD to become ready (docs say 15ms+).
     _delay_ms(20);
 
-    command(LCD_4BIT_INIT);  
-    command(DISPLAY_ON_CURSOR_OFF);
+    command(LCD_4BIT_INIT);
+    command(LCD_4BIT_2LINE);
+    command(DISPLAY_ON_CURSOR_BLINKING);
 
     _delay_ms(3);
 }
 
 struct digital_clock
 {
-  uint8_t sec, min, hour;
+  char sec, min, hour;
 } time;
+
+bool set_hour = false;
+bool set_min  = false;
+bool set_sec  = false;
 
 // Timer 2 is an 8-bit timer/counter, and so it can count up to 2^8(256) such periods before it rolls over.
 int clock_source = 256;
@@ -172,6 +177,8 @@ int time_count = 0;
 
 ISR(TIMER2_OVF_vect)
 {
+    while(!set_sec){};
+
     time_count++;
 
     // According to calculations, with frequency '1 MHz', we need to update the LCD every second;
@@ -180,9 +187,6 @@ ISR(TIMER2_OVF_vect)
     // to compensate for this amount of delay in sending, we considered the number 3900 to enter this block.
     if(time_count == 3900)
     {
-        // Clear display of LCD.
-        command(CLEAR_DISPLAY);
-
         // To display digital clock.
         char str[8];
 
@@ -207,6 +211,8 @@ ISR(TIMER2_OVF_vect)
             time.hour = 0;
         }
 
+        command(MOVE_CURSOR_2nd_LINE);
+
         // Create necessary string to display digital clock.
         sprintf(str, "%02d:%02d:%02d", time.hour, time.min, time.sec);
 
@@ -217,22 +223,6 @@ ISR(TIMER2_OVF_vect)
 
 int main()
 {
-    // LCD Initialize function.
-    init();
-
-    // To display digital clock.
-    char str[8];
-
-    // Create necessary string to display digital clock.
-    sprintf(str, "%02d:%02d:%02d", time.hour, time.min, time.sec);
-
-    // Write the string on LCD.
-    write_str(str);
-
-    // Enable Timer 2.
-    TIMSK = TIMSK
-            | (1 << TOIE2); 
-    
     // Set timer 2 prescaler to system clock.
     TCCR2 = TCCR2
             | (1 << CS20);
@@ -243,8 +233,174 @@ int main()
     // Enables interrupts by setting the global interrupt mask.
     sei();
 
-    // Do nothing...
-    while(true){}
+    init();
+
+    // To display necessary strings.
+    char str[15];
+
+    // Write necessary string.
+    sprintf(str, "Set Clock:");
+
+    // Write the string on LCD.
+    write_str(str);
+
+    command(MOVE_CURSOR_2nd_LINE);
+
+    // Create necessary string.
+    sprintf(str, "HOUR: %02d", time.hour);
+
+    // Write the string on LCD.
+    write_str(str);
+
+    while(true)
+    {
+        while(!set_hour)
+        {
+            if((PINB >> PINB0) & 1)
+            {
+                _delay_ms(500);
+
+                set_hour = true;
+
+                command(MOVE_CURSOR_2nd_LINE);
+
+                // Create necessary string.
+                sprintf(str, "MINUTE: %02d", time.min);
+
+                // Write the string on LCD.
+                write_str(str);
+            }
+            else if((PINB >> PINB1) & 1)
+            {
+                _delay_ms(300);
+
+                time.hour++;
+                if(time.hour == 24) time.hour = 0;
+
+                command(MOVE_CURSOR_2nd_LINE);
+                sprintf(str, "HOUR: %02d", time.hour);
+                write_str(str);
+
+                _delay_ms(3);
+            }
+            else if((PINB >> 2) & 1) 
+            {
+                _delay_ms(300);
+
+                time.hour--;
+                if(time.hour == -1) time.hour = 23;
+
+                command(MOVE_CURSOR_2nd_LINE);
+                sprintf(str, "HOUR: %02d", time.hour);
+                write_str(str);
+
+                _delay_ms(3);
+            }      
+        }
+
+        while(!set_min)
+        {
+            if((PINB >> PINB0) & 1)
+            {
+                _delay_ms(500);
+
+                set_min = true;
+
+                command(MOVE_CURSOR_2nd_LINE);
+
+                // Create necessary string.
+                sprintf(str, "SECOND: %02d", time.sec);
+
+                // Write the string on LCD.
+                write_str(str);
+            }
+            else if((PINB >> PINB1) & 1)
+            {
+                _delay_ms(300);
+                
+                time.min++;
+                if(time.min == 60) time.min = 0;
+
+                command(MOVE_CURSOR_2nd_LINE);
+                sprintf(str, "MINUTE: %02d", time.min);
+                write_str(str);
+
+                _delay_ms(3);
+            }
+            else if((PINB >> 2) & 1) 
+            {
+                _delay_ms(300);
+
+                time.min--;
+                if(time.min == -1) time.min = 59;
+
+                command(MOVE_CURSOR_2nd_LINE);
+                sprintf(str, "MINUTE: %02d", time.min);
+                write_str(str);
+
+                _delay_ms(3);
+            }      
+        }
+
+        while(!set_sec)
+        {
+            if((PINB >> PINB0) & 1)
+            {
+                _delay_ms(500);
+
+                set_sec = true;
+
+                command(CLEAR_DISPLAY);
+
+                command(DISPLAY_ON_CURSOR_OFF);
+
+                // Write necessary string.
+                sprintf(str, "Current Time:");
+
+                // Write the string on LCD.
+                write_str(str);
+
+                command(MOVE_CURSOR_2nd_LINE);
+
+                // Create necessary string.
+                sprintf(str, "%02d:%02d:%02d", time.hour, time.min, time.sec);
+
+                // Write the string on LCD.
+                write_str(str);
+
+                // Enable Timer 2.
+                TIMSK = TIMSK
+                        | (1 << TOIE2); 
+                
+            }
+            else if((PINB >> PINB1) & 1)
+            {
+                _delay_ms(300);
+                
+                time.sec++;
+                if(time.sec == 60) time.sec = 0;
+
+                command(MOVE_CURSOR_2nd_LINE);
+                sprintf(str, "SECOND: %02d", time.sec);
+                write_str(str);
+
+                _delay_ms(3);
+            }
+            else if((PINB >> 2) & 1) 
+            {
+                _delay_ms(300);
+
+                time.sec--;
+                if(time.sec == -1) time.sec = 59;
+
+                command(MOVE_CURSOR_2nd_LINE);
+                sprintf(str, "SECOND: %02d", time.sec);
+                write_str(str);
+
+                _delay_ms(3);
+            }      
+        }
+    }
 
     return 0;
 }
