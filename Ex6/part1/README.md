@@ -1,0 +1,3 @@
+# RESULT
+
+![example](./example.gif)
